@@ -1,0 +1,23 @@
+RTL & Agent Tools
+=================
+
+This is a derivative work distributed under the GNU General Public License v3.0
+(see LICENSE.txt). It preserves the following upstream attribution as required by
+the license.
+
+Upstream / prior work:
+
+  * rtl-for-vs-code-agents by GuyRonnen (GPL-3.0)
+    The RTL detection/injection engine and the VS Code AI-agent integration this
+    project is built on.
+
+  * claude-desktop-rtl-patch by shraga100
+    Prior RTL work that the upstream extension drew on.
+
+  * "YOLO mode" (auto-approve tool calls with a countdown) — original idea and
+    JavaScript snippet by Chris Le (chrisle).
+
+Modifications in this fork include: rebranding to "RTL & Agent Tools", removal of
+the self-update mechanism, a cross-platform font stack and per-line input direction
+default, quick-prompt (⚡) buttons, and removal of the Windows desktop patch and the
+quota meter. These modifications are likewise licensed under GPL-3.0.

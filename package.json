@@ -1,0 +1,83 @@
+{
+  "name": "rtl-agent-tools",
+  "displayName": "RTL & Agent Tools",
+  "description": "RTL support, YOLO auto-approval, auto-resume on rate limits, in-conversation search, and quick-prompt buttons for Claude Code, Codex/ChatGPT, Gemini Code Assist, and Copilot Chat.",
+  "version": "11.0.0",
+  "publisher": "local",
+  "license": "GPL-3.0",
+  "icon": "icon128.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "rtlForVsCodeAgents.checkAndInject",
+        "title": "RTL & Agent Tools: Check and Inject"
+      },
+      {
+        "command": "rtlForVsCodeAgents.configureCustomCss",
+        "title": "RTL & Agent Tools: Configure Custom CSS Loader"
+      },
+      {
+        "command": "rtlForVsCodeAgents.removeInjections",
+        "title": "RTL & Agent Tools: Remove All Injections"
+      }
+    ],
+    "configuration": {
+      "title": "RTL & Agent Tools",
+      "properties": {
+        "rtlForVsCodeAgents.autoInject": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect new agent (Claude Code / Codex / Gemini) versions and re-inject RTL support so it keeps working after the agent updates."
+        },
+        "rtlForVsCodeAgents.checkIntervalHours": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "How often to re-check the agents for a new version (in hours). 0 disables periodic checks (startup only)."
+        },
+        "rtlForVsCodeAgents.autoConfigureCustomCss": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically configure Custom CSS and JS Loader to load the RTL script (needed for Copilot Chat)."
+        },
+        "rtlForVsCodeAgents.userMessageBorder": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show a colored border around user messages for easy identification.\n\n**Tip:** It's easier to toggle this by right-clicking the ↑↓ navigation buttons — changes are instant (no reload needed). This setting is only used as the initial default on first install."
+        },
+        "rtlForVsCodeAgents.yoloCountdownSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 30,
+          "markdownDescription": "YOLO mode countdown duration (seconds) before auto-approving tool calls.\n\n**0 = instant** (no progress bar).\n\n**Tip:** It's easier to change this by right-clicking the 💪 button directly — changes are instant and persistent (no reload needed). This setting is only used as the initial default on first install."
+        },
+        "rtlForVsCodeAgents.quickPrompts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Short label shown on the button (emoji or a few characters work best)."
+              },
+              "text": {
+                "type": "string",
+                "description": "The text to insert into the agent input box when the button is clicked."
+              }
+            }
+          },
+          "markdownDescription": "Quick-prompt buttons: each entry adds a button to the agent toolbar that inserts its text into the input box.\n\n**Tip:** It's easier to manage these by right-clicking the ⚡ button in the toolbar — changes are instant (no reload needed). This setting is only used to seed the defaults on first install."
+        }
+      }
+    }
+  }
+}
