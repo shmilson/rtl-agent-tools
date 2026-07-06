@@ -8,6 +8,17 @@ const os = require('os');
 const MARKER = 'RTL for VS Code Agents';
 const SCRIPT_FILE = 'rtl-for-vs-code-agents.js';
 
+// The extension version is stamped into the injection marker so we can detect a STALE
+// injection (an older script left inside the agent) and refresh it — even when the file
+// is already "injected". Read once at load, independent of activate().
+const CURRENT_VERSION = (() => {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+    } catch (e) {
+        return '0';
+    }
+})();
+
 let statusBarItem;
 
 function getConfig() {
@@ -130,6 +141,12 @@ function isInjected(content) {
     return content.includes('// ' + MARKER);
 }
 
+// True only when the injection matches the CURRENT extension version. An injection from
+// an older build is "injected" but NOT current, so it must be refreshed.
+function isCurrentInjection(content) {
+    return content.includes('// ' + MARKER + ' v' + CURRENT_VERSION + ' ');
+}
+
 function hasAnyInjection(content) {
     return content.includes('// ' + MARKER) || content.includes('// RTL Support for Claude Code');
 }
@@ -137,7 +154,8 @@ function hasAnyInjection(content) {
 function needsInjection(indexPath) {
     if (!fs.existsSync(indexPath)) return false;
     const content = fs.readFileSync(indexPath, 'utf8');
-    return !isInjected(content);
+    // Re-inject if not injected at all, or if the injected script is from an older version.
+    return !isInjected(content) || !isCurrentInjection(content);
 }
 
 function buildConfigBlock() {
@@ -280,19 +298,22 @@ function stripPlanInjection(extensionDir) {
 
 function injectScript(indexPath, scriptContent) {
     let original = fs.readFileSync(indexPath, 'utf8');
-    if (isInjected(original)) {
-        return { changed: false, reason: 'already-injected' };
+    const wasInjected = isInjected(original);
+    if (wasInjected && isCurrentInjection(original)) {
+        return { changed: false, reason: 'already-current' };
     }
 
+    // ensureBackup only copies if no backup exists yet, so a stale injection never
+    // becomes the "pristine" backup — the backup stays the original agent file.
     ensureBackup(indexPath);
 
-    // Strip legacy injection if present (older versions used a different header)
+    // Strip any existing injection (old version or legacy header) before re-appending.
     original = stripInjection(original);
 
     const configBlock = buildConfigBlock();
-    const appended = `${original}\n\n// ${MARKER} (injected)\n${configBlock}\n${scriptContent}\n`;
+    const appended = `${original}\n\n// ${MARKER} v${CURRENT_VERSION} (injected)\n${configBlock}\n${scriptContent}\n`;
     fs.writeFileSync(indexPath, appended, 'utf8');
-    return { changed: true, reason: 'injected' };
+    return { changed: true, reason: wasInjected ? 're-injected' : 'injected' };
 }
 
 async function confirmInjection(target) {
@@ -570,7 +591,7 @@ function reinjectAll(extensionPath) {
         // Strip old injection (current or legacy), re-append with new config
         const clean = stripInjection(content);
         if (clean === content) continue; // nothing was stripped
-        const output = `${clean}\n\n// ${MARKER} (injected)\n${configBlock}\n${scriptContent}\n`;
+        const output = `${clean}\n\n// ${MARKER} v${CURRENT_VERSION} (injected)\n${configBlock}\n${scriptContent}\n`;
         fs.writeFileSync(target.indexPath, output, 'utf8');
         count++;
 
