@@ -19,6 +19,31 @@
 (function() {
     'use strict';
 
+    // localStorage can be missing or throw inside some webviews; one unguarded access used to
+    // kill the whole script. Fall back to in-memory storage (settings then last for the session).
+    const rtlStorage = (() => {
+        const memory = new Map();
+        const fallback = {
+            getItem: k => (memory.has(k) ? memory.get(k) : null),
+            setItem: (k, v) => { memory.set(k, String(v)); },
+            removeItem: k => { memory.delete(k); }
+        };
+        try {
+            const ls = window.localStorage;
+            const probe = '__rtl_probe__';
+            ls.setItem(probe, '1');
+            ls.removeItem(probe);
+            return {
+                getItem: k => { try { return ls.getItem(k); } catch (e) { return fallback.getItem(k); } },
+                setItem: (k, v) => { try { ls.setItem(k, v); } catch (e) { fallback.setItem(k, v); } },
+                removeItem: k => { try { ls.removeItem(k); } catch (e) { fallback.removeItem(k); } }
+            };
+        } catch (e) {
+            console.warn('RTL & Agent Tools: localStorage unavailable, using in-memory settings');
+            return fallback;
+        }
+    })();
+
     // Track elements that had RTL applied — survives React re-renders that strip data attributes
     const rtlTrackedElements = new WeakSet();
 
@@ -1148,7 +1173,7 @@
     let yoloCountdownCancel = null;   // cancel function for active countdown
 
     // ─── Auto-Resume Mode ──────────────────────────────────────────
-    let autoResumeActive = localStorage.getItem('rtl-auto-resume-active') === 'true';
+    let autoResumeActive = rtlStorage.getItem('rtl-auto-resume-active') === 'true';
     let autoResumeTimerId = null;
     let autoResumeTargetTime = null; // timestamp (ms) when reset happens + 60,000 buffer
     const YOLO_LS_KEY = 'rtl-yolo-delay-ms';
@@ -1158,38 +1183,38 @@
     const INPUT_DIR_MODE_LS_KEY = 'rtl-input-dir-mode'; // 'uniform' (default) or 'per-line'
 
     // Seed localStorage from injected config (only if not already set by user)
-    if (localStorage.getItem(YOLO_LS_KEY) === null) {
+    if (rtlStorage.getItem(YOLO_LS_KEY) === null) {
         const seed = (window.__RTL_CONFIG__ && typeof window.__RTL_CONFIG__.yoloDelayMs === 'number')
             ? window.__RTL_CONFIG__.yoloDelayMs : 5000;
-        localStorage.setItem(YOLO_LS_KEY, String(seed));
+        rtlStorage.setItem(YOLO_LS_KEY, String(seed));
     }
-    if (localStorage.getItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY) === null) {
-        localStorage.setItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY, 'false');
+    if (rtlStorage.getItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY) === null) {
+        rtlStorage.setItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY, 'false');
     }
-    if (localStorage.getItem(BORDER_LS_KEY) === null) {
+    if (rtlStorage.getItem(BORDER_LS_KEY) === null) {
         const seed = (window.__RTL_CONFIG__ && typeof window.__RTL_CONFIG__.userMessageBorder === 'boolean')
             ? window.__RTL_CONFIG__.userMessageBorder : true;
-        localStorage.setItem(BORDER_LS_KEY, String(seed));
+        rtlStorage.setItem(BORDER_LS_KEY, String(seed));
     }
-    if (localStorage.getItem(INPUT_DIR_MODE_LS_KEY) === null) {
+    if (rtlStorage.getItem(INPUT_DIR_MODE_LS_KEY) === null) {
         const seed = (window.__RTL_CONFIG__ && window.__RTL_CONFIG__.inputDirMode)
             ? window.__RTL_CONFIG__.inputDirMode : 'uniform';
-        localStorage.setItem(INPUT_DIR_MODE_LS_KEY, seed);
+        rtlStorage.setItem(INPUT_DIR_MODE_LS_KEY, seed);
     }
 
     /** Read YOLO delay dynamically — changes take effect on next poll without reload */
     function getYoloDelayMs() {
-        const v = parseInt(localStorage.getItem(YOLO_LS_KEY), 10);
+        const v = parseInt(rtlStorage.getItem(YOLO_LS_KEY), 10);
         return isNaN(v) ? 5000 : v;
     }
     function setYoloDelayMs(ms) {
-        localStorage.setItem(YOLO_LS_KEY, String(Math.max(0, ms)));
+        rtlStorage.setItem(YOLO_LS_KEY, String(Math.max(0, ms)));
     }
     function getYoloAutoApprovePlans() {
-        return localStorage.getItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY) === 'true';
+        return rtlStorage.getItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY) === 'true';
     }
     function setYoloAutoApprovePlans(on) {
-        localStorage.setItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY, String(!!on));
+        rtlStorage.setItem(YOLO_AUTO_APPROVE_PLANS_LS_KEY, String(!!on));
     }
 
     // ─── Input direction mode toggle ─────────────────────────────────
@@ -1197,10 +1222,10 @@
     // its own direction (correct for mixed Hebrew/English coding prompts). An explicit
     // saved 'uniform' still forces a single RTL direction for the whole input.
     function getInputDirMode() {
-        return localStorage.getItem(INPUT_DIR_MODE_LS_KEY) === 'uniform' ? 'uniform' : 'per-line';
+        return rtlStorage.getItem(INPUT_DIR_MODE_LS_KEY) === 'uniform' ? 'uniform' : 'per-line';
     }
     function setInputDirMode(mode) {
-        localStorage.setItem(INPUT_DIR_MODE_LS_KEY, mode);
+        rtlStorage.setItem(INPUT_DIR_MODE_LS_KEY, mode);
         reapplyInputDirection();
     }
 
@@ -1215,10 +1240,10 @@
 
     // ─── User message border toggle ──────────────────────────────────
     function getUserMessageBorder() {
-        return localStorage.getItem(BORDER_LS_KEY) !== 'false';
+        return rtlStorage.getItem(BORDER_LS_KEY) !== 'false';
     }
     function setUserMessageBorder(on) {
-        localStorage.setItem(BORDER_LS_KEY, String(on));
+        rtlStorage.setItem(BORDER_LS_KEY, String(on));
         applyUserMessageBorder();
     }
 
@@ -1260,7 +1285,7 @@
     const QUICK_PROMPTS_LS_KEY = 'rtl-quick-prompts';
 
     function getQuickPrompts() {
-        const raw = localStorage.getItem(QUICK_PROMPTS_LS_KEY);
+        const raw = rtlStorage.getItem(QUICK_PROMPTS_LS_KEY);
         if (raw !== null) {
             try {
                 const arr = JSON.parse(raw);
@@ -1280,12 +1305,12 @@
         seed = seed
             .filter(p => p && typeof p.text === 'string' && p.text.length)
             .map(p => ({ label: String(p.label || p.text).slice(0, 24), text: String(p.text) }));
-        localStorage.setItem(QUICK_PROMPTS_LS_KEY, JSON.stringify(seed));
+        rtlStorage.setItem(QUICK_PROMPTS_LS_KEY, JSON.stringify(seed));
         return seed;
     }
 
     function setQuickPrompts(arr) {
-        localStorage.setItem(QUICK_PROMPTS_LS_KEY, JSON.stringify(Array.isArray(arr) ? arr : []));
+        rtlStorage.setItem(QUICK_PROMPTS_LS_KEY, JSON.stringify(Array.isArray(arr) ? arr : []));
     }
 
     /** Find the active agent input box (Claude Code / Codex / Gemini / Copilot). */
@@ -1885,7 +1910,7 @@
 
     function toggleAutoResume() {
         autoResumeActive = !autoResumeActive;
-        localStorage.setItem('rtl-auto-resume-active', String(autoResumeActive));
+        rtlStorage.setItem('rtl-auto-resume-active', String(autoResumeActive));
         if (!autoResumeActive) {
             if (autoResumeTimerId) {
                 clearTimeout(autoResumeTimerId);

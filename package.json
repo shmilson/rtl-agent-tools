@@ -2,9 +2,13 @@
   "name": "rtl-agent-tools",
   "displayName": "RTL & Agent Tools",
   "description": "RTL support, YOLO auto-approval, auto-resume on rate limits, in-conversation search, and quick-prompt buttons for Claude Code, Codex/ChatGPT, Gemini Code Assist, and Copilot Chat.",
-  "version": "11.0.1",
+  "version": "11.0.2",
   "publisher": "local",
   "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shmilson/rtl-agent-tools.git"
+  },
   "icon": "icon128.png",
   "engines": {
     "vscode": "^1.85.0"
