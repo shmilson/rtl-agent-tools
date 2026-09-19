@@ -159,12 +159,66 @@ function needsInjection(indexPath) {
     return !isInjected(content) || !isCurrentInjection(content);
 }
 
+// Claude Code `/config` keys shown in the settings menu, and where each one is stored when it
+// isn't saved under its own name. Keys missing from both files are left out, and the menu
+// shows them as "default".
+const CLAUDE_SETTING_KEYS = [
+    'agentPushNotifEnabled', 'artifacts', 'autoCompact', 'autoConnectIde', 'autoScroll', 'checkpoints',
+    'chrome', 'copyFullResponse', 'copyOnSelect', 'defaultToAgentsView', 'editor', 'externalEditorContext',
+    'fast', 'gitignore', 'inputNeededNotifEnabled', 'language', 'leftArrowOpensAgents', 'model',
+    'notifChannel', 'outputStyle', 'permissionMode', 'prStatus', 'progressBar', 'promptSuggestionEnabled',
+    'recap', 'reduceMotion', 'remoteControl', 'switchModelsOnFlag', 'theme', 'thinking', 'timeFormat',
+    'tips', 'turnDuration', 'useAutoModeDuringPlan', 'verbose', 'workflowKeywordTriggerEnabled',
+    'workflowSizeGuideline', 'workflows', 'worktreeBaseRef'
+];
+const CLAUDE_SETTING_ALIASES = {
+    autoCompact: ['autoCompactEnabled'],
+    editor: ['editorMode'],
+    thinking: ['alwaysThinkingEnabled'],
+    fast: ['fastMode'],
+    gitignore: ['respectGitignore'],
+    notifChannel: ['preferredNotifChannel'],
+    chrome: ['claudeInChromeDefaultEnabled']
+};
+
+function readJsonQuietly(file) {
+    try {
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (e) {
+        return {};
+    }
+}
+
+function readClaudeSettings() {
+    const home = os.homedir();
+    const sources = [
+        readJsonQuietly(path.join(home, '.claude', 'settings.json')),
+        readJsonQuietly(path.join(home, '.claude.json'))
+    ];
+    const values = {};
+    const permissionMode = sources[0].permissions && sources[0].permissions.defaultMode;
+    if (typeof permissionMode === 'string') values.permissionMode = permissionMode;
+
+    for (const key of CLAUDE_SETTING_KEYS) {
+        if (key in values) continue;
+        for (const name of [key, ...(CLAUDE_SETTING_ALIASES[key] || [])]) {
+            const source = sources.find(s => ['boolean', 'string'].includes(typeof s[name]));
+            if (source) {
+                values[key] = source[name];
+                break;
+            }
+        }
+    }
+    return values;
+}
+
 function buildConfigBlock() {
     const config = getConfig();
     const yoloSeconds = Number(config.get('yoloCountdownSeconds', 5)) || 0;
     const userMessageBorder = config.get('userMessageBorder', true);
     const quickPrompts = Array.isArray(config.get('quickPrompts', [])) ? config.get('quickPrompts', []) : [];
-    return `window.__RTL_CONFIG__ = ${JSON.stringify({ yoloDelayMs: yoloSeconds * 1000, userMessageBorder, quickPrompts })};`;
+    const claudeSettings = readClaudeSettings();
+    return `window.__RTL_CONFIG__ = ${JSON.stringify({ yoloDelayMs: yoloSeconds * 1000, userMessageBorder, quickPrompts, claudeSettings })};`;
 }
 
 const PLAN_MARKER = 'RTL-Plan-Injection';
@@ -618,7 +672,12 @@ async function removeAllInjections(context) {
     );
     if (choice !== yes) return;
 
-    const restored = restoreAllBackups();
+    let restored = restoreAllBackups();
+    try {
+        restored += removeWorkbenchInjection();
+    } catch (e) {
+        console.error('RTL: failed to remove workbench injection:', e.message);
+    }
     await context.globalState.update('rtlForVsCodeAgents.injectedPaths', []);
 
     if (restored > 0) {
@@ -634,6 +693,95 @@ async function removeAllInjections(context) {
         });
     } else {
         vscode.window.showInformationMessage('RTL: no injections found to remove.');
+    }
+}
+
+// --- Workbench (main window) injection, for agents rendered outside a webview ---
+// Antigravity's built-in agent chat lives in the editor window itself, so the only way in is a
+// <script> tag in the workbench HTML. App updates replace those files; this runs on every
+// activation and puts the tag back, then offers a reload.
+//
+// The app's own file checksums are left untouched, so the editor may report that its
+// installation "appears corrupt" after the first patch. That notice is expected and dismissable;
+// "Remove All Injections" restores the original files.
+
+const WORKBENCH_SCRIPT_FILE = 'rtl-workbench.js';
+const WORKBENCH_TAG = '<!-- RTL for VS Code Agents: workbench -->';
+const WORKBENCH_SCRIPT_TAG = `${WORKBENCH_TAG}\n<script src="./${WORKBENCH_SCRIPT_FILE}"></script>\n`;
+
+function isAntigravityHost() {
+    return /antigravity/i.test(vscode.env.appName || '');
+}
+
+function listWorkbenchHtmlFiles() {
+    const dirs = ['electron-browser', 'electron-sandbox'].map(d =>
+        path.join(vscode.env.appRoot, 'out', 'vs', 'code', d, 'workbench'));
+    const files = [];
+    for (const dir of dirs) {
+        for (const name of ['workbench.html', 'workbench-jetski-agent.html']) {
+            const file = path.join(dir, name);
+            if (fs.existsSync(file)) files.push(file);
+        }
+    }
+    return files;
+}
+
+// Returns true when anything on disk changed (a reload is needed to pick it up).
+function injectWorkbench(extensionPath) {
+    const source = fs.readFileSync(path.join(extensionPath, WORKBENCH_SCRIPT_FILE), 'utf8');
+    let changed = false;
+
+    for (const htmlPath of listWorkbenchHtmlFiles()) {
+        const dir = path.dirname(htmlPath);
+        const scriptPath = path.join(dir, WORKBENCH_SCRIPT_FILE);
+        if (!fs.existsSync(scriptPath) || fs.readFileSync(scriptPath, 'utf8') !== source) {
+            fs.writeFileSync(scriptPath, source, 'utf8');
+            changed = true;
+        }
+
+        const html = fs.readFileSync(htmlPath, 'utf8');
+        if (html.includes(WORKBENCH_TAG)) continue;
+        // Load before the workbench's own module script; ours only waits for the DOM.
+        const anchor = html.search(/<script\s[^>]*src="\.\/[^"]+\.js"[^>]*type="module"/);
+        if (anchor < 0) continue;
+        const backupPath = `${htmlPath}.rtl-backup`;
+        if (!fs.existsSync(backupPath)) fs.writeFileSync(backupPath, html, 'utf8');
+        fs.writeFileSync(htmlPath, html.slice(0, anchor) + WORKBENCH_SCRIPT_TAG + html.slice(anchor), 'utf8');
+        changed = true;
+    }
+
+    return changed;
+}
+
+function removeWorkbenchInjection() {
+    let restored = 0;
+    for (const htmlPath of listWorkbenchHtmlFiles()) {
+        const html = fs.readFileSync(htmlPath, 'utf8');
+        if (html.includes(WORKBENCH_TAG)) {
+            fs.writeFileSync(htmlPath, html.replace(WORKBENCH_SCRIPT_TAG, ''), 'utf8');
+            restored++;
+        }
+        for (const extra of [path.join(path.dirname(htmlPath), WORKBENCH_SCRIPT_FILE), `${htmlPath}.rtl-backup`]) {
+            if (fs.existsSync(extra)) fs.unlinkSync(extra);
+        }
+    }
+    return restored;
+}
+
+function maybeInjectWorkbench(context) {
+    if (!isAntigravityHost() || !getConfig().get('injectWorkbench', true)) return;
+    try {
+        if (injectWorkbench(context.extensionPath)) {
+            vscode.window.showInformationMessage(
+                'RTL & Agent Tools: RTL for the Antigravity agent chat is installed. Reload the window to apply.',
+                'Reload Window'
+            ).then(choice => {
+                if (choice === 'Reload Window') vscode.commands.executeCommand('workbench.action.reloadWindow');
+            });
+        }
+    } catch (e) {
+        const hint = (e.code === 'EACCES' || e.code === 'EPERM') ? ' (no write access to the app folder)' : '';
+        vscode.window.showWarningMessage(`RTL & Agent Tools: could not patch the Antigravity window${hint}: ${e.message}`);
     }
 }
 
@@ -747,6 +895,7 @@ async function activate(context) {
 
     // Auto-inject RTL into agent webviews
     checkAndInject(context, { quiet: false, interactive: true, notifyNoChanges: false });
+    maybeInjectWorkbench(context);
     checkCopilotStatus();
     scheduleAutoCheck(context);
     maybeAutoConfigureCustomCss(context);

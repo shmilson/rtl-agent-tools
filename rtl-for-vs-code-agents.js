@@ -780,6 +780,160 @@
                 font-size: 10px;
             }
 
+            /* Codex fallback: native per-paragraph direction where our selectors miss */
+            html.rtl-codex-fallback :where(p, li, ol, ul, h1, h2, h3, h4, h5, h6, blockquote, td, th):not([data-rtl-applied]) {
+                unicode-bidi: plaintext;
+            }
+            html.rtl-codex-fallback :where(pre, code) :where(p, li, span, div) {
+                unicode-bidi: normal;
+            }
+
+            /* Claude Code settings menu (⚙️) */
+            .rtl-cc-popup {
+                width: 340px;
+                max-width: 92vw;
+                gap: 6px;
+                text-align: right;
+            }
+            .rtl-cc-status {
+                font-size: 10px;
+                opacity: 0.6;
+                min-height: 13px;
+            }
+            .rtl-cc-status.rtl-cc-status-error {
+                opacity: 1;
+                color: var(--vscode-errorForeground, #f48771);
+            }
+            .rtl-cc-search,
+            .rtl-cc-textbox input {
+                padding: 3px 6px;
+                border: 1px solid var(--vscode-input-border, #3c3c3c);
+                border-radius: 3px;
+                background: var(--vscode-input-background, #1e1e1e);
+                color: var(--vscode-input-foreground, #ccc);
+                font-size: 12px;
+                font-family: inherit;
+            }
+            .rtl-cc-body {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-height: 60vh;
+                overflow-y: auto;
+                padding-left: 4px;
+            }
+            .rtl-cc-group {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .rtl-cc-group-title {
+                font-size: 10px;
+                font-weight: 700;
+                opacity: 0.55;
+                padding-bottom: 2px;
+                border-bottom: 1px solid rgba(128,128,128,0.25);
+                margin-bottom: 2px;
+            }
+            .rtl-cc-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 3px 0;
+            }
+            .rtl-cc-text {
+                display: flex;
+                flex-direction: column;
+                line-height: 1.25;
+                cursor: help;
+                min-width: 0;
+            }
+            .rtl-cc-label {
+                font-size: 12px;
+            }
+            .rtl-cc-key {
+                font-size: 9px;
+                opacity: 0.45;
+                direction: ltr;
+                text-align: right;
+                font-family: var(--vscode-editor-font-family, monospace);
+            }
+            .rtl-cc-row.rtl-cc-unset .rtl-cc-label {
+                opacity: 0.6;
+            }
+            .rtl-cc-select {
+                max-width: 150px;
+                padding: 2px 4px;
+                border: 1px solid var(--vscode-input-border, #3c3c3c);
+                border-radius: 3px;
+                background: var(--vscode-dropdown-background, #1e1e1e);
+                color: var(--vscode-dropdown-foreground, #ccc);
+                font-size: 11px;
+                direction: ltr;
+            }
+            .rtl-cc-textbox {
+                display: flex;
+                gap: 4px;
+            }
+            .rtl-cc-textbox input {
+                width: 96px;
+            }
+            .rtl-cc-textbox button {
+                padding: 2px 8px;
+                border: 1px solid rgba(128,128,128,0.4);
+                border-radius: 3px;
+                background: transparent;
+                color: inherit;
+                font-size: 11px;
+                cursor: pointer;
+            }
+            .rtl-cc-switch {
+                position: relative;
+                flex: 0 0 auto;
+                width: 32px;
+                height: 18px;
+                cursor: pointer;
+            }
+            .rtl-cc-switch input {
+                position: absolute;
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+            .rtl-cc-knob {
+                position: absolute;
+                inset: 0;
+                border-radius: 9px;
+                background: rgba(128,128,128,0.35);
+                transition: background 0.15s ease;
+            }
+            .rtl-cc-knob::before {
+                content: "";
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: #fff;
+                transition: transform 0.15s ease;
+            }
+            .rtl-cc-switch input:checked + .rtl-cc-knob {
+                background: var(--vscode-button-background, #0e639c);
+            }
+            .rtl-cc-switch input:checked + .rtl-cc-knob::before {
+                transform: translateX(-14px);
+            }
+            .rtl-cc-switch input:focus-visible + .rtl-cc-knob {
+                outline: 1px solid var(--vscode-focusBorder, #007fd4);
+                outline-offset: 1px;
+            }
+            .rtl-cc-foot {
+                font-size: 9px;
+                opacity: 0.45;
+            }
+
             /* Quick-prompt buttons popup (⚡) */
             .rtl-qp-popup {
                 min-width: 220px;
@@ -1313,6 +1467,26 @@
         rtlStorage.setItem(QUICK_PROMPTS_LS_KEY, JSON.stringify(Array.isArray(arr) ? arr : []));
     }
 
+    /** Press Enter in an agent input box, then click its send button as a fallback. */
+    function submitInput(inputEl) {
+        for (const type of ['keydown', 'keypress', 'keyup']) {
+            inputEl.dispatchEvent(new KeyboardEvent(type, {
+                bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
+            }));
+        }
+        const form = inputEl.closest('form');
+        if (form) {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.click();
+        } else {
+            const footer = inputEl.closest('[class*="inputFooter_"]') || inputEl.closest('.composer-footer');
+            if (footer) {
+                const submitBtn = footer.querySelector('button[class*="footerButtonPrimary_"]') || footer.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.click();
+            }
+        }
+    }
+
     /** Find the active agent input box (Claude Code / Codex / Gemini / Copilot). */
     function findActiveInput() {
         const inputs = Array.from(document.querySelectorAll(CONFIG.inputSelectors.join(', ')));
@@ -1452,6 +1626,293 @@
         render(mode === 'manage' ? 'manage' : 'pick');
         document.body.appendChild(popup);
         setTimeout(() => document.addEventListener('mousedown', onQpOutsideClick, true), 0);
+    }
+    // ────────────────────────────────────────────────────────────────
+
+    // ─── Claude Code settings menu (⚙️) ─────────────────────────────
+    // Every change is sent as `/config key=value` through Claude Code's own input box, so the
+    // agent applies it with its own validation. Current values come from the settings files
+    // (read by the extension at injection time) and from changes made here since.
+
+    const CC_SETTINGS_LS_KEY = 'rtl-cc-settings';
+
+    const CC_SETTINGS_GROUPS = [
+        { title: 'מודל ואופן עבודה', items: [
+            { key: 'model', label: 'מודל', type: 'select',
+              options: ['default', 'best', 'opus', 'opus[1m]', 'sonnet', 'sonnet[1m]', 'haiku', 'fable', 'fable[1m]', 'opusplan'],
+              hint: 'המודל שעונה. [1m] = חלון הקשר של מיליון טוקנים. opusplan = Opus בתכנון ו-Sonnet בביצוע.' },
+            { key: 'fast', label: 'מצב מהיר', type: 'bool', hint: 'אותו Opus, פלט מהיר יותר.' },
+            { key: 'thinking', label: 'חשיבה לפני תשובה', type: 'bool', hint: 'משפר איכות במשימות מורכבות, מאט מעט.' },
+            { key: 'permissionMode', label: 'מצב הרשאות', type: 'select',
+              options: ['default', 'plan', 'acceptEdits', 'auto', 'dontAsk'],
+              hint: 'default: שואל. acceptEdits: עורך בלי לשאול. plan: רק מתכנן. auto: מסווג מחליט. dontAsk: לא שואל, ודוחה את מה שלא אושר מראש.' },
+            { key: 'useAutoModeDuringPlan', label: 'מצב auto גם בתכנון', type: 'bool', hint: 'האם מצב auto פעיל גם במצב תכנון.' },
+            { key: 'switchModelsOnFlag', label: 'כשמודל לא זמין', type: 'select',
+              options: ['Switch automatically', 'Ask each time'], hint: 'לעבור אוטומטית למודל אחר, או לשאול קודם.' },
+            { key: 'outputStyle', label: 'סגנון תשובות', type: 'select',
+              options: ['default', 'Concise', 'Explanatory', 'Learning', 'Proactive'], hint: 'קצר, מסביר, מלמד או יוזם.' },
+            { key: 'language', label: 'שפת תשובות', type: 'text', placeholder: 'hebrew', hint: 'לדוגמה hebrew. ריק = ברירת מחדל.' }
+        ]},
+        { title: 'זיכרון והקשר', items: [
+            { key: 'autoCompact', label: 'דחיסה אוטומטית', type: 'bool', hint: 'מסכם את תחילת השיחה כשמתקרבים לגבול ההקשר.' },
+            { key: 'checkpoints', label: 'נקודות שחזור', type: 'bool', hint: 'שומר מצב לפני עריכות, לחזרה עם ‎/rewind.' },
+            { key: 'gitignore', label: 'לכבד את ‎.gitignore', type: 'bool', hint: 'חיפוש קבצים מדלג על מה שב-‎.gitignore.' },
+            { key: 'recap', label: 'סיכום בחזרה לשיחה', type: 'bool', hint: 'סיכום קצר כשחוזרים אחרי הפסקה.' },
+            { key: 'externalEditorContext', label: 'הקשר מעורך חיצוני', type: 'bool', hint: 'לצרף הקשר כשכותבים הודעה בעורך חיצוני.' }
+        ]},
+        { title: 'עורך ו-IDE', items: [
+            { key: 'autoConnectIde', label: 'חיבור אוטומטי ל-IDE', type: 'bool', hint: 'מטרמינל חיצוני: מתחבר ל-IDE הפתוח.' },
+            { key: 'editor', label: 'מצב עריכה', type: 'select', options: ['normal', 'vim'], hint: 'קיצורי vim בשורת ההקלדה.' }
+        ]},
+        { title: 'ממשק ותצוגה', items: [
+            { key: 'theme', label: 'ערכת צבעים', type: 'select',
+              options: ['auto', 'dark', 'light', 'dark-daltonized', 'light-daltonized', 'dark-ansi', 'light-ansi'],
+              hint: 'daltonized = מותאם לעיוורון צבעים. ansi = צבעי הטרמינל.' },
+            { key: 'autoScroll', label: 'גלילה אוטומטית', type: 'bool', hint: 'גולל לתחתית כשמגיע פלט.' },
+            { key: 'progressBar', label: 'פס התקדמות', type: 'bool', hint: 'פס התקדמות בזמן עבודה.' },
+            { key: 'turnDuration', label: 'משך כל תור', type: 'bool', hint: 'מציג כמה זמן לקח כל תור.' },
+            { key: 'timeFormat', label: 'תבנית שעה', type: 'select', options: ['auto', '12-hour', '24-hour', '24-hour-utc'], hint: '12 או 24 שעות, או UTC.' },
+            { key: 'reduceMotion', label: 'פחות אנימציות', type: 'bool', hint: 'מפחית תנועה בממשק.' },
+            { key: 'tips', label: 'טיפים', type: 'bool', hint: 'טיפים בזמן ההמתנה.' },
+            { key: 'verbose', label: 'פלט מפורט', type: 'bool', hint: 'מציג תוצאות כלים במלואן.' },
+            { key: 'promptSuggestionEnabled', label: 'הצעות להודעה הבאה', type: 'bool', hint: 'הצעות אחרי כל תשובה.' },
+            { key: 'copyOnSelect', label: 'העתקה בסימון', type: 'bool', hint: 'סימון טקסט מעתיק אותו.' },
+            { key: 'copyFullResponse', label: 'העתקת תשובה מלאה', type: 'bool', hint: 'העתקה לוקחת את כל התשובה.' },
+            { key: 'prStatus', label: 'סטטוס PR', type: 'bool', hint: 'מציג את מצב ה-PR של הענף.' }
+        ]},
+        { title: 'סוכנים וזרימות עבודה', items: [
+            { key: 'defaultToAgentsView', label: 'פתיחה בתצוגת סוכנים', type: 'bool', hint: 'פותח ישר את רשימת הסשנים והסוכנים.' },
+            { key: 'leftArrowOpensAgents', label: 'חץ שמאלה פותח סוכנים', type: 'bool', hint: 'חץ שמאלה בשורה ריקה פותח את תצוגת הסוכנים.' },
+            { key: 'workflows', label: 'זרימות עבודה', type: 'bool', hint: 'מאפשר הפעלת סוכנים רבים במקביל.' },
+            { key: 'workflowKeywordTriggerEnabled', label: 'הפעלה במילת מפתח', type: 'bool', hint: 'מילה כמו ultracode מפעילה זרימת עבודה.' },
+            { key: 'workflowSizeGuideline', label: 'גודל זרימת עבודה', type: 'select',
+              options: ['small', 'medium', 'large', 'unrestricted'], hint: 'כמה סוכנים מותר להפעיל. יותר = יותר טוקנים.' },
+            { key: 'worktreeBaseRef', label: 'בסיס ל-worktree', type: 'select', options: ['fresh', 'head'],
+              hint: 'fresh: מהענף הראשי העדכני. head: ממה שיש לך עכשיו.' }
+        ]},
+        { title: 'התראות וחיבורים', items: [
+            { key: 'inputNeededNotifEnabled', label: 'התראה כשצריך אותך', type: 'bool', hint: 'כשממתין לתשובה או לאישור.' },
+            { key: 'agentPushNotifEnabled', label: 'התראות לטלפון', type: 'bool', hint: 'push כשסוכן מסיים או צריך אותך.' },
+            { key: 'notifChannel', label: 'ערוץ התראות', type: 'select',
+              options: ['auto', 'iterm2', 'terminal_bell', 'iterm2_with_bell', 'kitty', 'ghostty', 'notifications_disabled'],
+              hint: 'איך נשלחת התראה. auto מזהה לבד.' },
+            { key: 'remoteControl', label: 'שליטה מרחוק', type: 'select', options: ['default', 'true', 'false'],
+              hint: 'שליטה בסשן מ-claude.ai או מהטלפון.' },
+            { key: 'chrome', label: 'Claude in Chrome', type: 'bool', hint: 'פעולה בדפדפן Chrome שלך.' },
+            { key: 'artifacts', label: 'Artifacts', type: 'bool', hint: 'פרסום דפי HTML פרטיים ב-claude.ai.' }
+        ]}
+    ];
+
+    function getCcSettingValue(key) {
+        try {
+            const local = JSON.parse(rtlStorage.getItem(CC_SETTINGS_LS_KEY) || '{}');
+            if (key in local) return local[key];
+        } catch (e) { /* corrupt — fall through to the injected values */ }
+        const injected = (window.__RTL_CONFIG__ && window.__RTL_CONFIG__.claudeSettings) || {};
+        return key in injected ? injected[key] : undefined;
+    }
+
+    function rememberCcSetting(key, value) {
+        let local = {};
+        try { local = JSON.parse(rtlStorage.getItem(CC_SETTINGS_LS_KEY) || '{}'); } catch (e) { local = {}; }
+        local[key] = value;
+        rtlStorage.setItem(CC_SETTINGS_LS_KEY, JSON.stringify(local));
+    }
+
+    function replaceInputText(inputEl, text) {
+        inputEl.focus();
+        let done = false;
+        try {
+            document.execCommand('selectAll', false, null);
+            done = text ? document.execCommand('insertText', false, text) : document.execCommand('delete', false, null);
+        } catch (e) { done = false; }
+        if (!done) {
+            if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') inputEl.value = text;
+            else inputEl.textContent = text;
+        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    /** Send `/config key=value` through the input box, restoring whatever draft was there. */
+    function sendConfigCommand(key, value) {
+        const inputEl = findActiveInput();
+        if (!inputEl) return false;
+        const draft = (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') ? inputEl.value : inputEl.textContent;
+        replaceInputText(inputEl, `/config ${key}=${value}`);
+        setTimeout(() => {
+            submitInput(inputEl);
+            if (draft && draft.trim()) {
+                setTimeout(() => {
+                    replaceInputText(inputEl, draft);
+                    if (containsRTL(draft)) applyInputRTL(inputEl);
+                }, 400);
+            }
+        }, 100);
+        return true;
+    }
+
+    function onCcOutsideClick(ev) {
+        const popup = document.querySelector('.rtl-cc-popup');
+        if (popup && !popup.contains(ev.target) && ev.target.id !== 'rtl-cc-settings-btn') closeCcSettingsPopup();
+    }
+    function closeCcSettingsPopup() {
+        const ex = document.querySelector('.rtl-cc-popup');
+        if (ex) ex.remove();
+        document.removeEventListener('mousedown', onCcOutsideClick, true);
+    }
+
+    function showCcSettingsPopup() {
+        if (document.querySelector('.rtl-cc-popup')) { closeCcSettingsPopup(); return; }
+
+        const popup = document.createElement('div');
+        popup.className = 'rtl-cc-popup yolo-settings-popup';
+        popup.style.bottom = '40px';
+        popup.style.right = '16px';
+        popup.setAttribute('dir', 'rtl');
+
+        const title = document.createElement('div');
+        title.className = 'rtl-qp-title';
+        title.textContent = 'הגדרות Claude Code';
+        popup.appendChild(title);
+
+        const status = document.createElement('div');
+        status.className = 'rtl-cc-status';
+        status.textContent = 'כל שינוי נשלח כפקודת ‎/config';
+        popup.appendChild(status);
+
+        const search = document.createElement('input');
+        search.type = 'text';
+        search.className = 'rtl-cc-search';
+        search.placeholder = 'חיפוש הגדרה…';
+        popup.appendChild(search);
+
+        const body = document.createElement('div');
+        body.className = 'rtl-cc-body';
+        popup.appendChild(body);
+
+        function flash(text, ok) {
+            status.textContent = text;
+            status.classList.toggle('rtl-cc-status-error', !ok);
+        }
+
+        function apply(item, value, control) {
+            if (!sendConfigCommand(item.key, value)) {
+                flash('לא נמצאה תיבת הקלט של Claude Code', false);
+                return;
+            }
+            rememberCcSetting(item.key, item.type === 'bool' ? value === 'true' : value);
+            const row = control && control.closest('.rtl-cc-row');
+            if (row) row.classList.remove('rtl-cc-unset');
+            flash(`נשלח: ${item.key}=${value}`, true);
+        }
+
+        function buildControl(item) {
+            const current = getCcSettingValue(item.key);
+            if (item.type === 'bool') {
+                const wrap = document.createElement('label');
+                wrap.className = 'rtl-cc-switch';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = current === true || current === 'true';
+                const knob = document.createElement('span');
+                knob.className = 'rtl-cc-knob';
+                input.addEventListener('change', () => apply(item, input.checked ? 'true' : 'false', input));
+                wrap.appendChild(input);
+                wrap.appendChild(knob);
+                return wrap;
+            }
+            if (item.type === 'select') {
+                const select = document.createElement('select');
+                select.className = 'rtl-cc-select';
+                if (current === undefined) {
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = 'ברירת מחדל';
+                    placeholder.disabled = true;
+                    placeholder.selected = true;
+                    select.appendChild(placeholder);
+                }
+                for (const opt of item.options) {
+                    const o = document.createElement('option');
+                    o.value = opt;
+                    o.textContent = opt;
+                    if (String(current) === opt) o.selected = true;
+                    select.appendChild(o);
+                }
+                select.addEventListener('change', () => apply(item, select.value, select));
+                return select;
+            }
+            const box = document.createElement('div');
+            box.className = 'rtl-cc-textbox';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.dir = 'ltr';
+            input.placeholder = item.placeholder || '';
+            input.value = typeof current === 'string' ? current : '';
+            const go = document.createElement('button');
+            go.textContent = 'החל';
+            const submit = () => { if (input.value.trim()) apply(item, input.value.trim(), input); };
+            go.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); submit(); });
+            input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            });
+            box.appendChild(input);
+            box.appendChild(go);
+            return box;
+        }
+
+        for (const group of CC_SETTINGS_GROUPS) {
+            const section = document.createElement('div');
+            section.className = 'rtl-cc-group';
+            const gt = document.createElement('div');
+            gt.className = 'rtl-cc-group-title';
+            gt.textContent = group.title;
+            section.appendChild(gt);
+            for (const item of group.items) {
+                const row = document.createElement('div');
+                row.className = 'rtl-cc-row';
+                if (getCcSettingValue(item.key) === undefined) row.classList.add('rtl-cc-unset');
+                row.dataset.search = `${item.label} ${item.key} ${item.hint}`.toLowerCase();
+                const text = document.createElement('div');
+                text.className = 'rtl-cc-text';
+                text.title = item.hint;
+                const label = document.createElement('div');
+                label.className = 'rtl-cc-label';
+                label.textContent = item.label;
+                const key = document.createElement('div');
+                key.className = 'rtl-cc-key';
+                key.textContent = item.key;
+                text.appendChild(label);
+                text.appendChild(key);
+                row.appendChild(text);
+                row.appendChild(buildControl(item));
+                section.appendChild(row);
+            }
+            body.appendChild(section);
+        }
+
+        search.addEventListener('input', () => {
+            const q = search.value.trim().toLowerCase();
+            body.querySelectorAll('.rtl-cc-group').forEach(section => {
+                let visible = 0;
+                section.querySelectorAll('.rtl-cc-row').forEach(row => {
+                    const show = !q || row.dataset.search.includes(q);
+                    row.hidden = !show;
+                    if (show) visible++;
+                });
+                section.hidden = visible === 0;
+            });
+        });
+        search.addEventListener('keydown', (e) => e.stopPropagation());
+
+        const foot = document.createElement('div');
+        foot.className = 'rtl-cc-foot';
+        foot.textContent = 'שם מעומעם = ההגדרה לא נקבעה ופועלת לפי ברירת המחדל';
+        popup.appendChild(foot);
+
+        document.body.appendChild(popup);
+        setTimeout(() => { document.addEventListener('mousedown', onCcOutsideClick, true); search.focus(); }, 0);
     }
     // ────────────────────────────────────────────────────────────────
 
@@ -2013,32 +2474,7 @@
             }
             inputEl.dispatchEvent(new Event('input', { bubbles: true }));
             
-            setTimeout(() => {
-                const enterDown = new KeyboardEvent('keydown', {
-                    bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
-                });
-                const enterPress = new KeyboardEvent('keypress', {
-                    bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
-                });
-                const enterUp = new KeyboardEvent('keyup', {
-                    bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
-                });
-                inputEl.dispatchEvent(enterDown);
-                inputEl.dispatchEvent(enterPress);
-                inputEl.dispatchEvent(enterUp);
-                
-                const form = inputEl.closest('form');
-                if (form) {
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    if (submitBtn) submitBtn.click();
-                } else {
-                    const footer = inputEl.closest('[class*="inputFooter_"]') || inputEl.closest('.composer-footer');
-                    if (footer) {
-                        const submitBtn = footer.querySelector('button[class*="footerButtonPrimary_"]') || footer.querySelector('button[type="submit"]');
-                        if (submitBtn) submitBtn.click();
-                    }
-                }
-            }, 100);
+            setTimeout(() => submitInput(inputEl), 100);
         } else {
             console.warn('⏰ Auto-Resume: Could not find message input element.');
         }
@@ -2144,6 +2580,14 @@
             nav.appendChild(copyConvBtn);
             nav.appendChild(inputDirBtn);
             nav.appendChild(quickPromptsBtn);
+            if (document.querySelector('[class*="inputFooter_"]')) {
+                const ccSettingsBtn = document.createElement('button');
+                ccSettingsBtn.id = 'rtl-cc-settings-btn';
+                ccSettingsBtn.title = 'הגדרות Claude Code';
+                ccSettingsBtn.textContent = '⚙️';
+                ccSettingsBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); showCcSettingsPopup(); });
+                nav.appendChild(ccSettingsBtn);
+            }
             nav.appendChild(yoloBtn);
             
             // Proactively update button's timer visual/classes if running
@@ -2920,9 +3364,25 @@
     /**
      * Initialize the RTL support
      */
+    /**
+     * Safety net for Codex: its markup changes often, and when our selectors miss, nothing was
+     * RTL at all. `unicode-bidi: plaintext` needs no class names — the browser gives each
+     * paragraph the direction of its first strong character. Elements we handled ourselves
+     * (data-rtl-applied) are left alone so the two don't fight.
+     */
+    function markCodexWebview() {
+        try {
+            const extensionId = new URLSearchParams(location.search).get('extensionId') || '';
+            const isCodex = extensionId.toLowerCase().includes('openai.chatgpt')
+                || !!document.querySelector('[data-codex-composer="true"]');
+            if (isCodex) document.documentElement.classList.add('rtl-codex-fallback');
+        } catch (e) { /* not a webview URL — skip the fallback */ }
+    }
+
     function init() {
         // Inject CSS styles first (one-time) - prevents flickering in Monaco inputs
         injectRTLStyles();
+        markCodexWebview();
 
         // Process existing elements
         processElements();

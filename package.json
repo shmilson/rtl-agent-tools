@@ -2,7 +2,7 @@
   "name": "rtl-agent-tools",
   "displayName": "RTL & Agent Tools",
   "description": "RTL support, YOLO auto-approval, auto-resume on rate limits, in-conversation search, and quick-prompt buttons for Claude Code, Codex/ChatGPT, Gemini Code Assist, and Copilot Chat.",
-  "version": "11.0.3",
+  "version": "11.0.4",
   "publisher": "local",
   "license": "GPL-3.0",
   "repository": {
@@ -50,6 +50,11 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically configure Custom CSS and JS Loader to load the RTL script (needed for Copilot Chat)."
+        },
+        "rtlForVsCodeAgents.injectWorkbench": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "In Antigravity, add RTL support to the built-in agent chat. That chat is part of the editor window, so this patches the app's own `workbench.html` (a backup is kept, and the patch is restored after every Antigravity update).\n\n**Note:** the app's file checksums are left as they are, so Antigravity may report once that its installation appears corrupt. Run **Remove All Injections** to undo."
         },
         "rtlForVsCodeAgents.userMessageBorder": {
           "type": "boolean",
