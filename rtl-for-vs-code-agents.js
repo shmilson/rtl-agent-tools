@@ -788,6 +788,33 @@
                 unicode-bidi: normal;
             }
 
+            /* Claude account switch (⇄a / ⇄b), shown while the account-badge mod's status line is */
+            #rtl-msg-nav #rtl-account-btn {
+                width: auto;
+                padding: 0 4px;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+            .rtl-acct-popup {
+                width: 300px;
+                max-width: 92vw;
+                text-align: right;
+                white-space: normal;
+            }
+            .rtl-acct-title {
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .rtl-acct-hint {
+                font-size: 11px;
+                opacity: 0.7;
+                line-height: 1.4;
+            }
+            .rtl-acct-row {
+                display: flex;
+                gap: 6px;
+            }
+
             /* Claude Code settings menu (⚙️) */
             .rtl-cc-popup {
                 width: 340px;
@@ -1629,6 +1656,96 @@
     }
     // ────────────────────────────────────────────────────────────────
 
+    // ─── Claude account switch (⇄a / ⇄b) ───────────────────────────
+    // For the two-account setup of ~/.claude-accounts and its account-badge mod: the mod's
+    // status line under the prompt (title "account-badge plugin: 🟠 חשבון b · …") names the
+    // session's account, and its /switch-account command moves the session to the other one.
+    // Without that status line the button stays hidden, so nothing changes for anyone else.
+    const ACCOUNT_OTHER = { a: 'b', b: 'a' };
+
+    function readSessionAccount() {
+        for (const el of document.querySelectorAll('[data-engine-status] > [title]')) {
+            const title = el.getAttribute('title') || '';
+            if (!title.startsWith('account-badge ')) continue;
+            const m = title.match(/חשבון ([ab])(?=\s|$)/);
+            if (m) return m[1];
+        }
+        return null;
+    }
+
+    function updateAccountButton() {
+        const btn = document.getElementById('rtl-account-btn');
+        if (!btn) return;
+        const acct = readSessionAccount();
+        const target = acct ? ACCOUNT_OTHER[acct] : undefined;
+        if (!target) {
+            btn.style.display = 'none';
+            btn.dataset.target = '';
+            return;
+        }
+        if (btn.dataset.target !== target) {
+            btn.dataset.target = target;
+            btn.textContent = `⇄${target}`;
+            btn.title = `הסשן בחשבון ${acct}. לחיצה מעבירה אותו לחשבון ${target}`;
+        }
+        btn.style.display = '';
+    }
+
+    function onAcctOutsideClick(ev) {
+        const popup = document.querySelector('.rtl-acct-popup');
+        if (popup && !popup.contains(ev.target) && ev.target.id !== 'rtl-account-btn') closeAccountPopup();
+    }
+    function closeAccountPopup() {
+        const ex = document.querySelector('.rtl-acct-popup');
+        if (ex) ex.remove();
+        document.removeEventListener('mousedown', onAcctOutsideClick, true);
+    }
+
+    function showAccountPopup() {
+        if (document.querySelector('.rtl-acct-popup')) { closeAccountPopup(); return; }
+        const acct = readSessionAccount();
+        const target = acct ? ACCOUNT_OTHER[acct] : undefined;
+        if (!target) return;
+
+        const popup = document.createElement('div');
+        popup.className = 'rtl-acct-popup yolo-settings-popup';
+        popup.dir = 'rtl';
+        popup.style.bottom = '40px';
+        popup.style.right = '16px';
+
+        const title = document.createElement('div');
+        title.className = 'rtl-acct-title';
+        title.textContent = `להעביר את הסשן לחשבון ${target}?`;
+        const hint = document.createElement('div');
+        hint.className = 'rtl-acct-hint';
+        hint.textContent = `התהליך של הסשן ייסגר, וההודעה הבאה שתשלח תמשיך את אותה שיחה בחשבון ${target}. `
+            + 'אם Claude באמצע תשובה, המעבר יקרה כשהיא תסתיים. משימות רקע שרצות עכשיו ייעצרו.';
+
+        const row = document.createElement('div');
+        row.className = 'rtl-acct-row';
+        const yes = document.createElement('button');
+        yes.className = 'rtl-qp-save';
+        yes.textContent = `כן, להחליף לחשבון ${target}`;
+        yes.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            closeAccountPopup();
+            sendCommandThroughInput(`/switch-account ${target}`);
+        });
+        const no = document.createElement('button');
+        no.className = 'rtl-qp-manage';
+        no.textContent = 'ביטול';
+        no.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); closeAccountPopup(); });
+        row.appendChild(yes);
+        row.appendChild(no);
+
+        popup.appendChild(title);
+        popup.appendChild(hint);
+        popup.appendChild(row);
+        document.body.appendChild(popup);
+        setTimeout(() => document.addEventListener('mousedown', onAcctOutsideClick, true), 0);
+    }
+    // ────────────────────────────────────────────────────────────────
+
     // ─── Claude Code settings menu (⚙️) ─────────────────────────────
     // Every change is sent as `/config key=value` through Claude Code's own input box, so the
     // agent applies it with its own validation. Current values come from the settings files
@@ -1735,10 +1852,15 @@
 
     /** Send `/config key=value` through the input box, restoring whatever draft was there. */
     function sendConfigCommand(key, value) {
+        return sendCommandThroughInput(`/config ${key}=${value}`);
+    }
+
+    /** Send a slash command through the input box, restoring whatever draft was there. */
+    function sendCommandThroughInput(command) {
         const inputEl = findActiveInput();
         if (!inputEl) return false;
         const draft = (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') ? inputEl.value : inputEl.textContent;
-        replaceInputText(inputEl, `/config ${key}=${value}`);
+        replaceInputText(inputEl, command);
         setTimeout(() => {
             submitInput(inputEl);
             if (draft && draft.trim()) {
@@ -2589,6 +2711,13 @@
                 nav.appendChild(ccSettingsBtn);
             }
             nav.appendChild(yoloBtn);
+
+            const accountBtn = document.createElement('button');
+            accountBtn.id = 'rtl-account-btn';
+            accountBtn.style.display = 'none'; // until the account-badge status line shows
+            accountBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); showAccountPopup(); });
+            nav.appendChild(accountBtn);
+            setTimeout(updateAccountButton, 0);
             
             // Proactively update button's timer visual/classes if running
             setTimeout(updateAutoResumeButton, 0);
@@ -3488,6 +3617,7 @@
         // Periodically check for auto-resume needs
         setInterval(() => {
             checkAutoResume();
+            updateAccountButton(); // the account follows the session's status line
         }, 1000);
 
         console.log('✅ RTL & Agent Tools: Initialized');

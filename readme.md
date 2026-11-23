@@ -39,6 +39,7 @@ The extension injects a small toolbar into the agent's input footer:
 | ⇔ | Toggle input direction mode (uniform / per-line) |
 | ⚡ | **Quick-prompt buttons** — insert your own saved snippets into the input box; right-click to manage them |
 | 💪 | **YOLO mode** — auto-approve tool calls after a countdown, with a **NO!** cancel button (right-click for delay + "Auto Approve Plans") |
+| ⇄a / ⇄b | **Claude account switch** (Claude Code) — for a two-account setup with the `account-badge` mod: moves the session to the other account after a confirmation, by sending that mod's `/switch-account` command. Shown only while the mod's status line names the session's account |
 
 ---
 
