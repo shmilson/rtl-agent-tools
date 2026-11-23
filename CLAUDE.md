@@ -45,8 +45,12 @@ webview. `debug-rewind.js` is a DevTools helper (not shipped logic).
 ### Toolbar tools (in the injected script)
 
 Nav ↑↓, Search 🔍, Auto-Resume ⏰, Copy conversation, Input-direction ⇔, Quick-prompts ⚡,
-and YOLO 💪. State (YOLO delay, auto-resume on/off, quick prompts, border toggle, input-dir
-mode) is persisted in `localStorage`, so changes take effect without a reload.
+YOLO 💪, and the Claude account switch ⇄a / ⇄b. That last one is for the two-account setup
+in `~/.claude-accounts`: it shows only while the `account-badge` mod's status line is on
+screen (`[data-engine-status] > [title^="account-badge "]`), reads the session's account from
+it, and sends `/switch-account <account>` (a command of that mod) through the input box.
+State (YOLO delay, auto-resume on/off, quick prompts, border toggle, input-dir mode) is
+persisted in `localStorage`, so changes take effect without a reload.
 
 ## Key DOM selectors by agent
 
